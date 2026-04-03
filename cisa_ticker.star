@@ -92,7 +92,7 @@ def main(config):
                     child  = render.Padding(
                         pad   = (3, 1, 0, 0),
                         child = render.Text(
-                            content = "! CISA TOP ALERTS",
+                            content = "CISA TOP ALERTS",
                             font    = "CG-pixel-3x5-mono",
                             color   = WHITE,
                         ),
