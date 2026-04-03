@@ -6,7 +6,6 @@
 
 load("render.star", "render")
 load("http.star", "http")
-load("xpath.star", "xpath")
 load("cache.star", "cache")
 load("schema.star", "schema")
 
@@ -22,7 +21,7 @@ BLACK       = "#000000"
 LIGHT_GRAY  = "#AAAAAA"
 
 def get_alerts(max_alerts):
-    """Fetch CISA alerts from RSS feed, with caching."""
+    """Fetch and parse CISA alert titles from RSS feed."""
     cached = cache.get(CACHE_KEY)
     if cached != None:
         return cached.split("|||")[:max_alerts]
@@ -31,15 +30,35 @@ def get_alerts(max_alerts):
     if resp.status_code != 200:
         return ["CISA feed unavailable — visit cisa.gov/alerts"]
 
-    doc    = xpath.loads(resp.body())
-    titles = doc.query("/rss/channel/item/title")
+    body   = resp.body()
+    titles = []
+
+    # Parse titles from each <item> block
+    items = body.split("<item>")
+    for item in items[1:]:
+        start = item.find("<title>")
+        end   = item.find("</title>")
+        if start == -1 or end == -1:
+            continue
+        title = item[start + 7 : end].strip()
+
+        # Strip CDATA wrappers if present
+        if title.startswith("<![CDATA["):
+            title = title[9:]
+        if title.endswith("]]>"):
+            title = title[:-3]
+        title = title.strip()
+
+        if title:
+            titles.append(title)
+        if len(titles) >= 10:
+            break
 
     if not titles:
-        return ["No CISA alerts currently available"]
+        return ["No CISA alerts found — check cisa.gov/alerts"]
 
-    cleaned = [t.strip() for t in titles if t.strip()]
-    cache.set(CACHE_KEY, "|||".join(cleaned[:10]), ttl_seconds = CACHE_TTL)
-    return cleaned[:max_alerts]
+    cache.set(CACHE_KEY, "|||".join(titles), ttl_seconds = CACHE_TTL)
+    return titles[:max_alerts]
 
 def main(config):
     max_alerts = int(config.get("max_alerts") or "5")
